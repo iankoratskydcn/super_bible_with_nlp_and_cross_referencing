@@ -1,1 +1,9 @@
 *.ipynb_checkpoints/*
+.security-report/
+out/
+__pycache__/
+.venv/
+cross_references.csv
+venv/
+data/cross_references.csv
+data/**/crossref_graph.gpickle
