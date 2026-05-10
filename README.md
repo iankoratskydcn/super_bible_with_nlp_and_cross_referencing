@@ -29,7 +29,6 @@ The `super_bible` is working towards incorporating more languages and translatio
          <li> <a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_ASV.csv",target="_blank">ASV</a> (American Standard Version)</li>
          <li> <a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_ESV.csv", target="_blank">ESV</a> (English Standard Version)</li>
           <li> <a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_KJV.csv", target="_blank">KJV</a> (King James's Version)</li>
-          <li> <a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_KSGM.csv", target="_blank">KSGM</a> (King Samuel's Gospel of Mary)</li>
           <li> <a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_KSV.csv", target="_blank">KSV</a> (King Samuel's Version)</li>
           <li> <a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_NASB.csv", target="_blank">NASB</a> (New American Standard Bible)</li>
           <li> <a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_NIV.csv", target="_blank">NIV</a> (New International Version)</li>
@@ -40,7 +39,6 @@ The `super_bible` is working towards incorporating more languages and translatio
      </li>
      <li> Español (ES)
        <ul>
-          <li><a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_RSEM.csv", target="_blank">RSEM</a> (Rey Samuel's Evangelio de Maria)</li>
           <li><a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_RSV.csv", target="_blank">RSV</a> (Rey Samuel's Versión de La Santa Biblia)</li>
           <li><a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_RV1858.csv", target="_blank">RV1858</a> (Reina Valera 1858 NT)</li>
           <li><a href="https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/version_files/super_bible_RV1909.csv", target="_blank">RV1909</a> (Reina Valera 1909)</li>
@@ -62,8 +60,8 @@ The `super_bible` is working towards incorporating more languages and translatio
 |OT|	1|	Genesis|	1|	1|	In the beginning, God created the heavens and ...|	ESV|	EN|
 |OT|	1|	Genesis|	1|	2|	The earth was without form and void, and darkn...|	ESV|	EN|
 |...|	...|	...|	...|	...|	...|	...|	...|
-|NT|	777|	Evangelio de Maria Magdalena|	4|	122|	Después que Levi termino de hablar, se fueron ...	|RSEM|	ES|
-|NT|	777|	Evangelio de Maria Magdalena|	4|	123|	Rey Samuel's El Evangelio de Maria	|RSEM|	ES|
+|NT|	777|	Evangelio de Maria Magdalena|	4|	122|	Después que Levi termino de hablar, se fueron ...	|RSV|	ES|
+|NT|	777|	Evangelio de Maria Magdalena|	4|	123|	Rey Samuel's El Evangelio de Maria	|RSV|	ES|
 
 
 This data was put together with the intention of creating a dataset of the scripture to train large language models, such as those in openAI's GPT-4 and Google's Bard, and thus is presented in this repository in its purest form. The code used to generate the `super_bible` was made flexible enough so that additional languages can be incorporated.
@@ -141,7 +139,7 @@ Here is an example raw file. Note the lack of a header row `[book,chapter,verse,
 Getting the scripture in this raw format does take some time, but worth the effort. It streamlines the construction of the `super_bible` dataset to make incorporating additional languages simple. Some of these raw files I found online; others I constructed myself.
 
 ### Rename the raw files
-The script picks up the filename and uses it to fill the version field in the `super_bible` dataset. Therefore, it is important that you rename the file with the correct abbreviation. For the English Standard Bible (ESV), the required *path+filename* would be `.zraw_data/EN/ESV.csv`. For Rey Samuel's Evangelio de Maria (RSEM), the required *path+filename* would be `.zraw_data/ES/RSEM.csv. And so on by induction`.
+The script picks up the filename and uses it to fill the version field in the `super_bible` dataset. Therefore, it is important that you rename the file with the correct abbreviation. For the English Standard Bible (ESV), the required *path+filename* would be `.zraw_data/EN/ESV.csv`. For Rey Samuel's Versión (RSV), the required *path+filename* would be `.zraw_data/ES/RSV.csv. And so on by induction`.
 
 # [`super_bible.db`](https://github.com/alshival/super_bible/blob/main/SUPER_BIBLE/super_bible.db)
 
