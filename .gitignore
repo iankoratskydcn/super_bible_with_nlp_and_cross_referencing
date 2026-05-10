@@ -1,1 +1,6 @@
 *.ipynb_checkpoints/*
+.security-report/
+out/
+__pycache__/
+.venv/
+cross_references.csv
