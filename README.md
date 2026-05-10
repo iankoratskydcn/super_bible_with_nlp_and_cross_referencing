@@ -182,8 +182,8 @@ You can use the SQLite database with Python as well:
     
 
 
-## Query ESV locally
-The repo includes `esv_query.py`, which queries the local SQLite DB (`SUPER_BIBLE/super_bible.db`) for verses in the `ESV` view.
+## Query Bible locally
+The repo includes `esv_query.py`, which queries the local SQLite DB (`SUPER_BIBLE/super_bible.db`) for verses in a chosen translation version (default `ESV`).
 
 CLI:
 ```bash
@@ -193,7 +193,7 @@ python3 esv_query.py --ref "Genesis 1:1-3"
 HTTP:
 ```bash
 python3 esv_query.py --serve --port 8000
-curl 'http://localhost:8000/v1/esv?ref=Genesis%201:1-3'
+curl 'http://localhost:8000/v1/bible?ref=Genesis%201:1-3&version=ESV'
 ```
 
 ## Verse Graph (Cross-References)

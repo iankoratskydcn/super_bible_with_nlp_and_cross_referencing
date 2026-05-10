@@ -77,6 +77,7 @@ def _write_pareto_csv_with_urls(
     metric_ranks: Dict[str, Dict[str, int]],
     pareto_nodes: Sequence[str],
     metrics: Sequence[str],
+    bible_version: str,
 ) -> None:
     pareto_set = set(pareto_nodes)
     n = len(nodes)
@@ -115,7 +116,13 @@ def _write_pareto_csv_with_urls(
         )
         for order, (_, tiebreak, node, ranks_for_node) in enumerate(rows, start=1):
             w.writerow(
-                [node, _node_id_to_url(node), str(node in pareto_set), order, tiebreak]
+                [
+                    node,
+                    _node_id_to_url(node, version=bible_version),
+                    str(node in pareto_set),
+                    order,
+                    tiebreak,
+                ]
                 + [ranks_for_node[m] for m in metrics]
             )
 
@@ -186,9 +193,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=",".join(DEFAULT_GRAPH_METRICS),
         help="Comma-separated graph metrics to use (must exist in community JSON ranks).",
     )
-    parser.add_argument("--nodes", type=str, default="community_nodes", choices=["community_nodes"], help="Eligibility set.")
+    parser.add_argument(
+        "--nodes",
+        type=str,
+        default="community_nodes",
+        choices=["community_nodes"],
+        help="Eligibility set.",
+    )
+    parser.add_argument("--version", type=str, default="ESV", help="Bible translation version (default: ESV).")
 
     args = parser.parse_args(list(argv) if argv is not None else None)
+    bible_version = str(args.version).strip().upper()
 
     community_path = Path(args.community_json).resolve()
     theme_csv_path = Path(args.theme_csv).resolve()
@@ -243,6 +258,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         metric_ranks=metric_ranks,
         pareto_nodes=pareto_nodes,
         metrics=metrics_all,
+        bible_version=bible_version,
     )
     print(f"wrote: {out_csv} (eligible={len(eligible_nodes)}, pareto={len(pareto_nodes)}, seeds={len(seed_nodes)})", flush=True)
     return 0

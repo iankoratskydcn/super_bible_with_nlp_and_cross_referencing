@@ -96,27 +96,55 @@ def parse_node_id(node_id: str) -> Tuple[str, int, int]:
     return book_token, chapter, verse
 
 
-def node_id_to_biblegateway_url(node_id: str, *, db_language_version: str = "ESV") -> str:
+def node_id_to_biblegateway_url(node_id: str, *, version: str = "ESV") -> str:
     """
     Build a stable BibleGateway URL that matches the repo's existing citation format:
-      https://www.biblegateway.com/passage/?search=<Book> <chapter>:<verse>&version=ESV
+      https://www.biblegateway.com/passage/?search=<Book> <chapter>:<verse>&version=<version>
     """
     book_token, chapter, verse = parse_node_id(node_id)
     en_book_map = load_en_book_mapping()
     book_title = en_book_map.get(book_token, book_token)
     citation = f"{book_title} {chapter}:{verse}"
-    return f"https://www.biblegateway.com/passage/?search={quote(citation)}&version={db_language_version}"
+    return f"https://www.biblegateway.com/passage/?search={quote(citation)}&version={version}"
+
+_VERSION_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
-def get_esv_texts_for_node_ids(db_path: Path, node_ids: Sequence[str]) -> Dict[str, str]:
+def _normalize_version(version: str) -> str:
+    v = version.strip().upper()
+    if not v or not _VERSION_RE.match(v):
+        raise ValueError("version must match regex ^[A-Za-z0-9_]+$")
+    return v
+
+
+def _sqlite_view_exists(conn: sqlite3.Connection, view_name: str) -> bool:
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='view' AND name=?",
+        (view_name,),
+    )
+    return cur.fetchone() is not None
+
+
+def get_versioned_texts_for_node_ids(
+    db_path: Path,
+    node_ids: Sequence[str],
+    *,
+    version: str,
+) -> Dict[str, str]:
     """
-    Batched DB fetch for ESV texts.
+    Batched DB fetch for a chosen Bible translation `version`.
 
     Groups by (title, chapter) so we can query verse ranges with a single SQL
     statement per (title, chapter).
     """
     if not node_ids:
         return {}
+
+    version_n = _normalize_version(version)
+    conn = sqlite3.connect(str(db_path))
+    use_view = _sqlite_view_exists(conn, version_n)
+    view_name = version_n if use_view else None
 
     en_book_map = load_en_book_mapping()
 
@@ -128,22 +156,34 @@ def get_esv_texts_for_node_ids(db_path: Path, node_ids: Sequence[str]) -> Dict[s
         groups[(book_title, chapter)].append((node_id, verse))
 
     out: Dict[str, str] = {}
-
-    conn = sqlite3.connect(str(db_path))
     try:
         cur = conn.cursor()
         for (book_title, chapter), id_verse_list in groups.items():
             verses = [v for (_nid, v) in id_verse_list]
             # Build IN (...) placeholders
             placeholders = ",".join(["?"] * len(verses))
-            sql = f"""
-                SELECT verse, text
-                FROM ESV
-                WHERE title = ?
-                  AND chapter = ?
-                  AND verse IN ({placeholders})
-            """
-            params: List[object] = [book_title, chapter]
+
+            if use_view:
+                assert view_name is not None
+                sql = f"""
+                    SELECT verse, text
+                    FROM {view_name}
+                    WHERE title = ?
+                      AND chapter = ?
+                      AND verse IN ({placeholders})
+                """
+                params: List[object] = [book_title, chapter]
+            else:
+                sql = f"""
+                    SELECT verse, text
+                    FROM super_bible
+                    WHERE version = ?
+                      AND title = ?
+                      AND chapter = ?
+                      AND verse IN ({placeholders})
+                """
+                params = [version_n, book_title, chapter]
+
             params.extend(verses)
             cur.execute(sql, params)
             rows = cur.fetchall()
@@ -615,6 +655,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--db", type=str, default=None, help="Path to super_bible.db (defaults to SUPER_BIBLE/super_bible.db).")
     parser.add_argument("--out", type=str, default=None, help="Output CSV path.")
 
+    parser.add_argument("--version", type=str, default="ESV", help="Bible translation version (default: ESV).")
+
     parser.add_argument("--workers", type=int, default=24, help="Thread workers for scoring.")
     parser.add_argument("--top-n-pareto", type=int, default=50, help="Top N Pareto-front candidates.")
     parser.add_argument("--test-all-verses", action="store_true", help="Score all Pareto CSV node_ids (skip seeds).")
@@ -667,6 +709,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     db_path = Path(args.db).resolve() if args.db else (root / "SUPER_BIBLE" / "super_bible.db")
     community_path = Path(args.community_json).resolve()
     pareto_path = Path(args.pareto_csv).resolve()
+    version_n = _normalize_version(args.version)
 
     if not community_path.exists():
         raise FileNotFoundError(f"community JSON not found: {community_path}")
@@ -701,11 +744,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     cand_doc_indices = list(range(seed_count, seed_count + cand_count))
 
     # Fetch verse texts for all docs nodes once
-    docs_texts_map = get_esv_texts_for_node_ids(db_path, docs_nodes)
+    docs_texts_map = get_versioned_texts_for_node_ids(db_path, docs_nodes, version=version_n)
     docs_texts: List[str] = [docs_texts_map.get(n, "") for n in docs_nodes]
 
     cache_dir = Path(args.reps_cache_dir).resolve()
     cache_key_params = {
+        "bible_version": str(version_n),
         "lda_num_topics": int(args.num_topics),
         "lda_max_features": int(args.lda_max_features),
         "lda_min_df": int(args.lda_min_df),
@@ -762,7 +806,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Map local candidate index -> global node_id
     cand_node_ids_local = candidate_nodes  # in order
     seed_node_ids_local = seed_nodes
-    cand_urls = {nid: node_id_to_biblegateway_url(nid) for nid in cand_node_ids_local}
+    cand_urls = {nid: node_id_to_biblegateway_url(nid, version=version_n) for nid in cand_node_ids_local}
 
     # Worker function: score a slice of candidate indices against all seeds.
     def score_candidate_slice(start: int, end: int) -> List[Dict[str, object]]:

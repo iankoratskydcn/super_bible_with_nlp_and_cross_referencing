@@ -2,12 +2,17 @@
 # coding: utf-8
 
 """
-Query the local ESV verses stored in SUPER_BIBLE/super_bible.db.
+Query local Bible verses from SUPER_BIBLE/super_bible.db.
 
 Two interfaces:
-  1) CLI:  ./esv_query.py --ref "Genesis 1:1-3"
-  2) HTTP: ./esv_query.py --serve --port 8000
-     GET /v1/esv?ref=Genesis%201:1-3
+  1) CLI:
+     ./esv_query.py --ref "Genesis 1:1-3" --version ESV
+  2) HTTP:
+     ./esv_query.py --serve --port 8000
+     GET /v1/bible?ref=Genesis%201:1-3&version=ESV
+
+Back-compat:
+  - GET /v1/esv?ref=... (defaults version to ESV)
 """
 
 from __future__ import annotations
@@ -38,6 +43,26 @@ _REF_RE = re.compile(
     r"(?P<start>\d+)"
     r"(?:\s*-\s*(?P<end>\d+))?\s*$"
 )
+
+_VERSION_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+
+def normalize_version(version: str) -> str:
+    v = version.strip().upper()
+    if not v:
+        raise ValueError("version must be a non-empty string")
+    if not _VERSION_RE.match(v):
+        raise ValueError("version must match regex ^[A-Za-z0-9_]+$")
+    return v
+
+
+def _sqlite_view_exists(conn: sqlite3.Connection, view_name: str) -> bool:
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='view' AND name=?",
+        (view_name,),
+    )
+    return cur.fetchone() is not None
 
 
 def normalize_verse_text(text: str) -> str:
@@ -81,8 +106,9 @@ def get_db_path() -> Path:
     return root / "SUPER_BIBLE" / "super_bible.db"
 
 
-def query_esv(
+def query_bible(
     db_path: Path,
+    version: str,
     book: str,
     chapter: int,
     start_verse: int,
@@ -90,25 +116,62 @@ def query_esv(
 ) -> List[Tuple[int, str]]:
     """
     Returns list of (verse_number, verse_text) sorted by verse asc.
+
+    Strategy:
+      - If a SQLite VIEW named after the requested `version` exists,
+        read `SELECT ... FROM <VIEW> WHERE title=? AND chapter=? ...`.
+      - Otherwise fall back to the `super_bible` table with `WHERE version=?`.
     """
+    version_n = normalize_version(version)
     conn = sqlite3.connect(str(db_path))
     try:
+        use_view = _sqlite_view_exists(conn, version_n)
         cur = conn.cursor()
-        cur.execute(
+        if use_view:
+            # version_n validated to be safe identifier.
+            sql = f"""
+                SELECT verse, text
+                FROM {version_n}
+                WHERE title = ?
+                  AND chapter = ?
+                  AND verse BETWEEN ? AND ?
+                ORDER BY verse ASC
             """
-            SELECT verse, text
-            FROM ESV
-            WHERE title = ?
-              AND chapter = ?
-              AND verse BETWEEN ? AND ?
-            ORDER BY verse ASC
-            """,
-            (book, chapter, start_verse, end_verse),
-        )
-        rows = cur.fetchall()
+            cur.execute(sql, (book, chapter, start_verse, end_verse))
+        else:
+            sql = """
+                SELECT verse, text
+                FROM super_bible
+                WHERE version = ?
+                  AND title = ?
+                  AND chapter = ?
+                  AND verse BETWEEN ? AND ?
+                ORDER BY verse ASC
+            """
+            cur.execute(sql, (version_n, book, chapter, start_verse, end_verse))
+
+        rows = cur.fetchall()  # (verse, text)
         return [(int(v), normalize_verse_text(t)) for (v, t) in rows]
     finally:
         conn.close()
+
+
+def query_esv(
+    db_path: Path,
+    book: str,
+    chapter: int,
+    start_verse: int,
+    end_verse: int,
+) -> List[Tuple[int, str]]:
+    # Back-compat wrapper for older internal call sites.
+    return query_bible(
+        db_path=db_path,
+        version="ESV",
+        book=book,
+        chapter=chapter,
+        start_verse=start_verse,
+        end_verse=end_verse,
+    )
 
 
 def format_cli(ref: VerseRef, verses: List[Tuple[int, str]]) -> str:
@@ -142,7 +205,7 @@ class ESVHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
-        if parsed.path != "/v1/esv":
+        if parsed.path not in ("/v1/bible", "/v1/esv"):
             self._send_json(404, {"error": "Not found"})
             return
 
@@ -152,6 +215,17 @@ class ESVHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "Missing query param 'ref'"})
             return
 
+        version_list = qs.get("version", [])
+        requested_version: str | None = version_list[0] if version_list else None
+        if parsed.path == "/v1/bible":
+            # For the generic endpoint, force callers to be explicit.
+            if requested_version is None:
+                self._send_json(400, {"error": "Missing query param 'version'"})
+                return
+        # For /v1/esv alias, default to ESV when version is omitted.
+        if requested_version is None:
+            requested_version = "ESV"
+
         ref_str = ref_list[0]
         try:
             ref = parse_reference(ref_str)
@@ -159,13 +233,21 @@ class ESVHandler(BaseHTTPRequestHandler):
             self._send_json(422, {"error": str(e)})
             return
 
-        verses = query_esv(
+        try:
+            version_n = normalize_version(requested_version)
+        except ValueError as e:
+            self._send_json(422, {"error": str(e)})
+            return
+
+        verses = query_bible(
             db_path=get_db_path(),
+            version=version_n,
             book=ref.book,
             chapter=ref.chapter,
             start_verse=ref.start_verse,
             end_verse=ref.end_verse,
         )
+
         if not verses:
             self._send_json(404, {"error": "Verse not found"})
             return
@@ -173,7 +255,7 @@ class ESVHandler(BaseHTTPRequestHandler):
         self._send_json(
             200,
             {
-                "version": "ESV",
+                "version": version_n,
                 "book": ref.book,
                 "chapter": ref.chapter,
                 "start_verse": ref.start_verse,
@@ -188,11 +270,17 @@ class ESVHandler(BaseHTTPRequestHandler):
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Query local ESV verses.")
+    parser = argparse.ArgumentParser(description="Query local Bible verses.")
     parser.add_argument(
         "--ref",
         type=str,
         help='Bible reference like "Genesis 1:1-3".',
+    )
+    parser.add_argument(
+        "--version",
+        type=str,
+        default="ESV",
+        help="Bible translation version (default: ESV).",
     )
     parser.add_argument("--serve", action="store_true", help="Run HTTP server.")
     parser.add_argument("--port", type=int, default=8000, help="HTTP port (default 8000).")
@@ -206,7 +294,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"DB not found at: {db_path}", file=sys.stderr)
             return 1
         httpd = ThreadingHTTPServer(("", port), ESVHandler)
-        print(f"Serving ESV on http://localhost:{port}/v1/esv", file=sys.stderr)
+        print(f"Serving Bible on http://localhost:{port}/v1/bible", file=sys.stderr)
+        print(f"Back-compat alias: http://localhost:{port}/v1/esv", file=sys.stderr)
         httpd.serve_forever()
         return 0
 
@@ -215,8 +304,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     ref = parse_reference(args.ref)
-    verses = query_esv(
+    version_n = normalize_version(args.version)
+    verses = query_bible(
         db_path=get_db_path(),
+        version=version_n,
         book=ref.book,
         chapter=ref.chapter,
         start_verse=ref.start_verse,

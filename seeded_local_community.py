@@ -36,7 +36,6 @@ import argparse
 import csv
 import json
 import re
-import sqlite3
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import quote
@@ -423,29 +422,35 @@ def load_en_book_mapping() -> Dict[str, str]:
     return mapping
 
 
-def get_esv_verse_text(db_path: Path, *, book_title: str, chapter: int, verse: int) -> str:
-    conn = sqlite3.connect(str(db_path))
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT text
-            FROM ESV
-            WHERE title = ?
-              AND chapter = ?
-              AND verse = ?
-            """,
-            (book_title, chapter, verse),
-        )
-        row = cur.fetchone()
-        if not row:
-            return ""
-        return str(row[0])
-    finally:
-        conn.close()
+def get_verse_text(
+    db_path: Path,
+    *,
+    version: str,
+    book_title: str,
+    chapter: int,
+    verse: int,
+) -> str:
+    # Reuse consistent parsing/SQL behavior from `esv_query.py`.
+    from esv_query import query_bible
+
+    rows = query_bible(
+        db_path=db_path,
+        version=version,
+        book=book_title,
+        chapter=chapter,
+        start_verse=verse,
+        end_verse=verse,
+    )
+    return str(rows[0][1]) if rows else ""
 
 
-def write_top_metrics_csv(result: Dict[str, object], out_csv: Path, *, k: int = 15) -> None:
+def write_top_metrics_csv(
+    result: Dict[str, object],
+    out_csv: Path,
+    *,
+    version: str,
+    k: int = 15,
+) -> None:
     rows = top_k_metrics_rows(result, k=k)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
 
@@ -467,13 +472,14 @@ def write_top_metrics_csv(result: Dict[str, object], out_csv: Path, *, k: int = 
         for metric, rank, node_id, score in rows:
             book_title, chapter, verse = node_id_to_book_title_and_chv(node_id)
             citation = f"{book_title} {chapter}:{verse}"
-            url = f"https://www.biblegateway.com/passage/?search={quote(citation)}&version=ESV"
+            url = f"https://www.biblegateway.com/passage/?search={quote(citation)}&version={version}"
 
-            cache_key = (book_title, chapter, verse)
+            cache_key = (book_title, chapter, verse, version)
             verse_text = verse_cache.get(cache_key)
             if verse_text is None:
-                verse_text = get_esv_verse_text(
+                verse_text = get_verse_text(
                     db_path,
+                    version=version,
                     book_title=book_title,
                     chapter=chapter,
                     verse=verse,
@@ -507,6 +513,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument("--alpha", type=float, default=0.85, help="PageRank damping factor")
     parser.add_argument("--out", type=str, default="out/seed_community.json", help="Output JSON path")
+    parser.add_argument("--version", type=str, default="ESV", help="Bible translation version (default: ESV).")
     parser.set_defaults(clear_out=True)
     parser.add_argument(
         "--no-clear-out",
@@ -576,6 +583,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="When rebuilding from CSV, do not expand same-book/chapter range tokens.",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
+
+    from esv_query import normalize_version
+
+    version_n = normalize_version(args.version)
 
     graph_path = Path(args.graph).resolve()
     csv_path = Path(args.csv).resolve()
@@ -678,7 +689,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # 2) Top metrics CSV
     if not args.no_top_csv:
         out_csv = out_dir / f"{stem}_top_metrics.csv"
-        write_top_metrics_csv(result, out_csv)
+        write_top_metrics_csv(result, out_csv, version=version_n)
         print(f"wrote: {out_csv}", flush=True)
 
     # 3) Pareto ranking CSV
@@ -731,6 +742,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     str(out_path),
                     "--pareto-csv",
                     str(pareto_csv),
+                    "--version",
+                    str(version_n),
                     "--workers",
                     str(args.theme_workers),
                     "--top-n-pareto",
@@ -765,6 +778,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     str(out_path),
                     "--theme-csv",
                     str(theme_csv),
+                    "--version",
+                    str(version_n),
                     "--out",
                     str(out_pareto_nlp_csv),
                 ]

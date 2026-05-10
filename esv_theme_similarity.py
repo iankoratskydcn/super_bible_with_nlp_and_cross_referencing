@@ -189,16 +189,18 @@ def tfidf_cosine_over_term_vocab(
     return {"cosine": cosine_similarity_dense(tfidf_a, tfidf_b), "vocab_size": len(vocab_list)}
 
 
-def load_text_from_esv_ref(db_path: Path, ref_str: str) -> str:
+def load_text_from_esv_ref(db_path: Path, ref_str: str, *, version: str = "ESV") -> str:
     # Reuse parsing + SQL querying from esv_query.py to stay consistent.
-    from esv_query import get_db_path, parse_reference, query_esv
+    from esv_query import get_db_path, parse_reference, query_bible, normalize_version
 
     _ = get_db_path  # silence unused import warning for editors
+    version_n = normalize_version(version)
     verse_ref = parse_reference(ref_str)
     # query_esv expects db_path, and book/chapter/verse params.
     # We join verses with a space so TF-IDF sees word continuity.
-    verses = query_esv(
+    verses = query_bible(
         db_path=db_path,
+        version=version_n,
         book=verse_ref.book,
         chapter=verse_ref.chapter,
         start_verse=verse_ref.start_verse,
@@ -349,9 +351,9 @@ def _sanitize_filename(s: str) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Compute ESV passage theme similarity metrics.")
-    parser.add_argument("--ref-a", type=str, required=True, help='ESV ref like "John 1:1-4".')
-    parser.add_argument("--ref-b", type=str, required=True, help='ESV ref like "John 1:14".')
+    parser = argparse.ArgumentParser(description="Compute Bible passage theme similarity metrics.")
+    parser.add_argument("--ref-a", type=str, required=True, help='Bible ref like "John 1:1-4".')
+    parser.add_argument("--ref-b", type=str, required=True, help='Bible ref like "John 1:14".')
     parser.add_argument(
         "--db",
         type=str,
@@ -369,6 +371,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--keyphrase-ngram-max", type=int, default=2)
     parser.add_argument("--keyphrase-top-terms", type=int, default=30)
     parser.add_argument("--entity-top-entities", type=int, default=50)
+    parser.add_argument("--version", type=str, default="ESV", help="Bible translation version (default: ESV).")
 
     args = parser.parse_args(list(argv) if argv is not None else None)
 
@@ -376,8 +379,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not db_path.exists():
         raise FileNotFoundError(f"DB not found: {db_path}")
 
-    text_a = load_text_from_esv_ref(db_path, args.ref_a)
-    text_b = load_text_from_esv_ref(db_path, args.ref_b)
+    from esv_query import normalize_version
+    version_n = normalize_version(args.version)
+
+    text_a = load_text_from_esv_ref(db_path, args.ref_a, version=version_n)
+    text_b = load_text_from_esv_ref(db_path, args.ref_b, version=version_n)
 
     result = compute_theme_similarity_between_texts(
         text_a,
@@ -397,7 +403,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.out_json == "out/theme_similarity.json":
         a = _sanitize_filename(args.ref_a)
         b = _sanitize_filename(args.ref_b)
-        out_json = out_json.with_name(f"theme_similarity_{a}__vs__{b}.json")
+        out_json = out_json.with_name(f"theme_similarity_{a}__vs__{b}_{version_n}.json")
 
     out_json.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(
@@ -405,6 +411,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             {
                 "ref_a": args.ref_a,
                 "ref_b": args.ref_b,
+                "version": version_n,
                 "result": result,
             },
             ensure_ascii=False,
