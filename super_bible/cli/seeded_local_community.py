@@ -654,7 +654,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             # so pass a folder with the desired stem name by writing into a
             # subdir and then moving outputs. To keep this simple and
             # deterministic, we instead render directly with the DOT builder.
-            from render_seeded_community_png import (
+            from super_bible.cli.render_seeded_community_png import (
                 build_dot_for_undirected_graph,
                 induced_undirected_subgraph,
                 write_png_from_dot,
@@ -731,7 +731,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
             pareto_csv = out_dir / f"{stem}_pareto_ranking.csv"
             if pareto_csv.exists():
-                theme_script = Path(__file__).resolve().parent / "rank_verses_vs_seeds_theme_parallel.py"
+                theme_module = "super_bible.cli.rank_verses_vs_seeds_theme_parallel"
                 theme_csv_expected = out_dir / f"{stem}_theme_vs_seeds_ranked.csv"
                 # Let the script choose its own default output name unless we want
                 # to be explicit; we do it explicitly so subsequent step can find it.
@@ -739,7 +739,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
                 cmd = [
                     sys.executable,
-                    str(theme_script),
+                    "-m",
+                    theme_module,
                     "--community-json",
                     str(out_path),
                     "--pareto-csv",
@@ -770,12 +771,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
             theme_csv = out_dir / f"{stem}_theme_vs_seeds_ranked.csv"
             if theme_csv.exists():
-                pareto_nlp_script = Path(__file__).resolve().parent / "rank_verses_pareto_with_nlp.py"
+                pareto_nlp_module = "super_bible.cli.rank_verses_pareto_with_nlp"
                 out_pareto_nlp_csv = out_dir / f"{stem}_pareto_ranking_with_nlp.csv"
 
                 cmd = [
                     sys.executable,
-                    str(pareto_nlp_script),
+                    "-m",
+                    pareto_nlp_module,
                     "--community-json",
                     str(out_path),
                     "--theme-csv",
