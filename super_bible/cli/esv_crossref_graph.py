@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
+from super_bible import paths
+
 
 _RANGE_RE = re.compile(
     r"^(?P<book_a>[^.]+)\.(?P<chap_a>\d+)\.(?P<verse_a>\d+)"
@@ -156,7 +158,12 @@ def load_digraph_pickle(in_path: Path) -> object:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Build verse graph from cross_references.csv")
-    parser.add_argument("--csv", type=str, default="cross_references.csv", help="Input CSV path.")
+    parser.add_argument(
+        "--csv",
+        type=str,
+        default=str(paths.CROSS_REFERENCES_CSV),
+        help="Input CSV path (default: data/cross_references.csv).",
+    )
     parser.add_argument(
         "--out",
         type=str,

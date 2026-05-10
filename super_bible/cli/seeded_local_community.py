@@ -40,6 +40,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import quote
 
+from super_bible import paths
+
 
 def _require_networkx():
     try:
@@ -404,7 +406,7 @@ def load_en_book_mapping() -> Dict[str, str]:
     if _EN_BOOK_MAPPING_CACHE is not None:
         return _EN_BOOK_MAPPING_CACHE
 
-    idx_path = Path(__file__).resolve().parent / ".zraw_metadata" / "EN_book_index.txt"
+    idx_path = paths.ZRAW_METADATA_DIR / "EN_book_index.txt"
     mapping: Dict[str, str] = {}
     with idx_path.open("r", encoding="utf-8") as f:
         lines = f.read().splitlines()
@@ -431,7 +433,7 @@ def get_verse_text(
     verse: int,
 ) -> str:
     # Reuse consistent parsing/SQL behavior from `esv_query.py`.
-    from esv_query import query_bible
+    from super_bible.cli.esv_query import query_bible
 
     rows = query_bible(
         db_path=db_path,
@@ -454,7 +456,7 @@ def write_top_metrics_csv(
     rows = top_k_metrics_rows(result, k=k)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    db_path = Path(__file__).resolve().parent / "SUPER_BIBLE" / "super_bible.db"
+    db_path = paths.SUPER_BIBLE_DB_PATH
 
     # Lazy-load mapping and cache verse text.
     en_book_map = load_en_book_mapping()
@@ -502,13 +504,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--graph",
         type=str,
-        default="SUPER_BIBLE/crossref_graph.gpickle",
+        default=str(paths.CROSSREF_GRAPH_PICKLE_PATH),
         help="Pickled NetworkX DiGraph built from cross_references.csv",
     )
     parser.add_argument(
         "--csv",
         type=str,
-        default="cross_references.csv",
+        default=str(paths.CROSS_REFERENCES_CSV),
         help="Fallback CSV used to rebuild the graph if --graph is missing.",
     )
     parser.add_argument("--alpha", type=float, default=0.85, help="PageRank damping factor")
@@ -584,7 +586,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    from esv_query import normalize_version
+    from super_bible.cli.esv_query import normalize_version
 
     version_n = normalize_version(args.version)
 
@@ -609,8 +611,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if graph_path.exists():
         g_di = _load_graph_pickle(graph_path)
     else:
-        from esv_crossref_graph import build_digraph_from_csv
-        from esv_crossref_graph import save_digraph_pickle
+        from super_bible.cli.esv_crossref_graph import build_digraph_from_csv
+        from super_bible.cli.esv_crossref_graph import save_digraph_pickle
 
         expand_ranges = True
         if args.no_expand_ranges:
@@ -694,7 +696,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     # 3) Pareto ranking CSV
     try:
-        from rank_verses_pareto import (
+        from super_bible.cli.rank_verses_pareto import (
             DEFAULT_METRICS,
             compute_metric_ranks,
             pareto_non_dominated,

@@ -21,7 +21,7 @@ import json
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from rank_verses_pareto import (
+from super_bible.cli.rank_verses_pareto import (
     DEFAULT_METRICS as DEFAULT_GRAPH_METRICS,
     compute_metric_ranks,
     pareto_non_dominated,
@@ -33,6 +33,8 @@ import csv as _csv  # keep module-level csv clean for this file
 import re as _re
 from urllib.parse import quote as _quote
 
+from super_bible import paths
+
 _VERSE_NODE_RE = _re.compile(r"^(?P<book>[^.]+)\.(?P<chapter>\d+)\.(?P<verse>\d+)$")
 _EN_BOOK_MAPPING_CACHE: Optional[Dict[str, str]] = None
 
@@ -42,7 +44,7 @@ def _load_en_book_mapping() -> Dict[str, str]:
     if _EN_BOOK_MAPPING_CACHE is not None:
         return _EN_BOOK_MAPPING_CACHE
 
-    idx_path = Path(__file__).resolve().parent / ".zraw_metadata" / "EN_book_index.txt"
+    idx_path = paths.ZRAW_METADATA_DIR / "EN_book_index.txt"
     mapping: Dict[str, str] = {}
     lines = idx_path.read_text(encoding="utf-8").splitlines()
     for line in lines[1:]:

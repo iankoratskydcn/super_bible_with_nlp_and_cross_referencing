@@ -2,7 +2,7 @@
 # coding: utf-8
 
 """
-Query local Bible verses from SUPER_BIBLE/super_bible.db.
+Query local Bible verses from `data/SUPER_BIBLE/super_bible.db`.
 
 Two interfaces:
   1) CLI:
@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
+from super_bible.paths import SUPER_BIBLE_DB_PATH
 
 @dataclass(frozen=True)
 class VerseRef:
@@ -102,8 +103,7 @@ def parse_reference(ref: str) -> VerseRef:
 
 
 def get_db_path() -> Path:
-    root = Path(__file__).resolve().parent
-    return root / "SUPER_BIBLE" / "super_bible.db"
+    return SUPER_BIBLE_DB_PATH
 
 
 def query_bible(

@@ -50,6 +50,8 @@ from urllib.parse import quote
 import hashlib
 import os
 
+from super_bible import paths
+
 from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
@@ -69,7 +71,7 @@ def load_en_book_mapping() -> Dict[str, str]:
     if _EN_BOOK_MAPPING_CACHE is not None:
         return _EN_BOOK_MAPPING_CACHE
 
-    idx_path = Path(__file__).resolve().parent / ".zraw_metadata" / "EN_book_index.txt"
+    idx_path = paths.ZRAW_METADATA_DIR / "EN_book_index.txt"
     mapping: Dict[str, str] = {}
     lines = idx_path.read_text(encoding="utf-8").splitlines()
     for line in lines[1:]:
@@ -652,7 +654,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Rank verses vs seeds using theme metrics (parallel).")
     parser.add_argument("--community-json", type=str, required=True, help="Path to seeded_local_community JSON.")
     parser.add_argument("--pareto-csv", type=str, required=True, help="Path to *_pareto_ranking.csv.")
-    parser.add_argument("--db", type=str, default=None, help="Path to super_bible.db (defaults to SUPER_BIBLE/super_bible.db).")
+    parser.add_argument(
+        "--db",
+        type=str,
+        default=None,
+        help="Path to super_bible.db (defaults to data/SUPER_BIBLE/super_bible.db).",
+    )
     parser.add_argument("--out", type=str, default=None, help="Output CSV path.")
 
     parser.add_argument("--version", type=str, default="ESV", help="Bible translation version (default: ESV).")
@@ -706,7 +713,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     root = Path(__file__).resolve().parent
-    db_path = Path(args.db).resolve() if args.db else (root / "SUPER_BIBLE" / "super_bible.db")
+    db_path = Path(args.db).resolve() if args.db else paths.SUPER_BIBLE_DB_PATH
     community_path = Path(args.community_json).resolve()
     pareto_path = Path(args.pareto_csv).resolve()
     version_n = _normalize_version(args.version)

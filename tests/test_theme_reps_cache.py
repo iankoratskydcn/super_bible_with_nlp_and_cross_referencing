@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from rank_verses_vs_seeds_theme_parallel import (
+from super_bible.cli.rank_verses_vs_seeds_theme_parallel import (
     compute_memoized_representations,
     load_or_compute_memoized_representations_cached,
     make_reps_cache_key,

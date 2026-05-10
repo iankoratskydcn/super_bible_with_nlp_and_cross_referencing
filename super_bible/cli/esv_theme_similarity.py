@@ -32,6 +32,8 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 
 import numpy as np
 
+from super_bible import paths
+
 try:
     from sklearn.decomposition import LatentDirichletAllocation
     from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
@@ -191,7 +193,12 @@ def tfidf_cosine_over_term_vocab(
 
 def load_text_from_esv_ref(db_path: Path, ref_str: str, *, version: str = "ESV") -> str:
     # Reuse parsing + SQL querying from esv_query.py to stay consistent.
-    from esv_query import get_db_path, parse_reference, query_bible, normalize_version
+    from super_bible.cli.esv_query import (
+        get_db_path,
+        parse_reference,
+        query_bible,
+        normalize_version,
+    )
 
     _ = get_db_path  # silence unused import warning for editors
     version_n = normalize_version(version)
@@ -357,8 +364,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--db",
         type=str,
-        default=str(Path(__file__).resolve().parent / "SUPER_BIBLE" / "super_bible.db"),
-        help="Path to SUPER_BIBLE/super_bible.db.",
+        default=str(paths.SUPER_BIBLE_DB_PATH),
+        help="Path to data/SUPER_BIBLE/super_bible.db.",
     )
     parser.add_argument("--out-json", type=str, default="out/theme_similarity.json", help="Output JSON path.")
 
@@ -379,7 +386,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not db_path.exists():
         raise FileNotFoundError(f"DB not found: {db_path}")
 
-    from esv_query import normalize_version
+    from super_bible.cli.esv_query import normalize_version
     version_n = normalize_version(args.version)
 
     text_a = load_text_from_esv_ref(db_path, args.ref_a, version=version_n)

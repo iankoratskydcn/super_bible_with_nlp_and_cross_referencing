@@ -183,16 +183,16 @@ You can use the SQLite database with Python as well:
 
 
 ## Query Bible locally
-The repo includes `esv_query.py`, which queries the local SQLite DB (`SUPER_BIBLE/super_bible.db`) for verses in a chosen translation version (default `ESV`).
+The repo includes `esv_query.py`, which queries the local SQLite DB (`data/SUPER_BIBLE/super_bible.db`) for verses in a chosen translation version (default `ESV`).
 
 CLI:
 ```bash
-python3 esv_query.py --ref "Genesis 1:1-3"
+python -m super_bible.cli.esv_query --ref "Genesis 1:1-3"
 ```
 
 HTTP:
 ```bash
-python3 esv_query.py --serve --port 8000
+python -m super_bible.cli.esv_query --serve --port 8000
 curl 'http://localhost:8000/v1/bible?ref=Genesis%201:1-3&version=ESV'
 ```
 
@@ -202,7 +202,7 @@ The repo includes `esv_crossref_graph.py`, which builds a directed verse graph f
 
 ```bash
 pip install -r requirements.txt
-python3 esv_crossref_graph.py --csv cross_references.csv --out out/crossref_graph.gpickle
+python -m super_bible.cli.esv_crossref_graph --csv data/cross_references.csv --out out/crossref_graph.gpickle
 ```
 
 The output is a pickled NetworkX `DiGraph` with edge attribute `weight = Votes`.
@@ -218,5 +218,5 @@ Example seed input:
 Usage:
 ```bash
 pip install -r requirements.txt
-python3 seeded_local_community.py --seed "John 1:1-4, 14" --graph out/crossref_graph.gpickle --out out/community_John_1_1-4_14.json
+python -m super_bible.cli.seeded_local_community --seed "John 1:1-4, 14" --graph out/crossref_graph.gpickle --out out/community_John_1_1-4_14.json
 ```

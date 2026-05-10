@@ -26,6 +26,8 @@ import subprocess
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Set
 
+from super_bible import paths
+
 
 def _require_networkx():
     try:
@@ -298,8 +300,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--csv",
         type=str,
-        default="cross_references.csv",
-        help="CSV path (used only when --graph missing and --rebuild-from-csv set).",
+        default=str(paths.CROSS_REFERENCES_CSV),
+        help="CSV path (used only when --graph missing and --rebuild-from-csv set). Default: data/cross_references.csv.",
     )
     parser.add_argument(
         "--rebuild-from-csv",
@@ -340,7 +342,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     else:
         if not args.rebuild_from_csv:
             raise FileNotFoundError(f"Graph pickle not found: {graph_path}. Use --rebuild-from-csv to rebuild.")
-        from esv_crossref_graph import build_digraph_from_csv, save_digraph_pickle
+        from super_bible.cli.esv_crossref_graph import build_digraph_from_csv, save_digraph_pickle
 
         g_di = build_digraph_from_csv(csv_path, expand_ranges=True, dedupe="max_abs_votes")
         # Persist so subsequent runs don’t need to rebuild.
